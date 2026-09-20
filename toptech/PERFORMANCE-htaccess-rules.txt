@@ -1,0 +1,54 @@
+# ==============================================================
+# TOPTECH MACHINERY - performance rules (compression + browser cache)
+# Copy EVERYTHING below into the .htaccess file in your WordPress
+# ROOT folder (public_html), ABOVE the line "# BEGIN WordPress".
+# Back the file up first. These are plain Apache rules - no plugin.
+#
+# NOTE: this file previously also contained a WebP content-negotiation
+# block (rewriting name.jpg to name.jpg.webp based on the Accept header).
+# It has been REMOVED deliberately - do not add it back. It served
+# image/webp content from .jpg URLs, and its Vary header was scoped to
+# <FilesMatch "\.(jpe?g|png)$">, which never matched the rewritten .webp
+# filename. Caches therefore stored the WebP as the only representation
+# of the .jpg URL, and Google Merchant Center disapproved 108 products
+# with "Image not processed" (Sept 2026). With the long max-age below, a
+# wrong-format response could now persist for a year. If WebP is wanted
+# later, serve it from its own .webp URL via <picture> markup instead of
+# negotiating at the .jpg URL.
+# ==============================================================
+
+# ---- Text compression (Gzip) ----
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css
+  AddOutputFilterByType DEFLATE application/javascript application/x-javascript application/json
+  AddOutputFilterByType DEFLATE application/xml application/rss+xml image/svg+xml
+  AddOutputFilterByType DEFLATE application/vnd.ms-fontobject font/ttf font/otf font/woff font/woff2
+</IfModule>
+
+# ---- Text compression (Brotli, if the host supports it) ----
+<IfModule mod_brotli.c>
+  AddOutputFilterByType BROTLI_COMPRESS text/html text/css application/javascript application/json image/svg+xml
+</IfModule>
+
+# ---- Browser caching (repeat visits load instantly) ----
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpeg              "access plus 1 year"
+  ExpiresByType image/png               "access plus 1 year"
+  ExpiresByType image/gif               "access plus 1 year"
+  ExpiresByType image/webp              "access plus 1 year"
+  ExpiresByType image/svg+xml           "access plus 1 year"
+  ExpiresByType image/x-icon            "access plus 1 year"
+  ExpiresByType video/mp4               "access plus 1 year"
+  ExpiresByType text/css                "access plus 1 month"
+  ExpiresByType application/javascript  "access plus 1 month"
+  ExpiresByType font/woff2              "access plus 1 year"
+  ExpiresByType font/woff               "access plus 1 year"
+  ExpiresByType text/html               "access plus 0 seconds"
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(jpg|jpeg|png|gif|webp|svg|ico|css|js|woff2|woff|ttf|otf|mp4)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
