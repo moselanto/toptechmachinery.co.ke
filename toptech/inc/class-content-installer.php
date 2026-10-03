@@ -34,6 +34,95 @@ final class Content_Installer {
 		add_action( 'admin_init', array( $this, 'fix_site_title' ) );
 		add_action( 'admin_init', array( $this, 'cleanup_competitor_brand' ) );
 		add_action( 'admin_init', array( $this, 'reclassify_dewalt_welders' ) );
+		add_action( 'admin_init', array( $this, 'clean_unverifiable_product_claims' ) );
+	}
+
+	/**
+	 * One-time cleanup for Google Merchant Center misrepresentation review.
+	 *
+	 * Auto-generated product copy says "Genuine {Brand}, competitively priced",
+	 * which produced "Genuine Generic" on unbranded items and unverifiable
+	 * authenticity claims elsewhere. Product titles of unbranded items also
+	 * start with the word "Generic". This migration:
+	 *  - rewrites "Genuine X, competitively priced" to "Competitively priced"
+	 *    in content, excerpt and SEO meta descriptions;
+	 *  - removes a leading "Generic " from product titles.
+	 * Runs in batches of 100 per admin load until done (own flag). Idempotent.
+	 */
+	public function clean_unverifiable_product_claims(): void {
+		if ( get_option( 'toptech_claims_cleanup_v1' ) ) {
+			return;
+		}
+		if ( function_exists( 'current_user_can' ) === false || current_user_can( 'edit_theme_options' ) === false ) {
+			return;
+		}
+		try {
+			global $wpdb;
+			if ( is_object( $wpdb ) === false ) {
+				return;
+			}
+			$fix_copy = static function ( string $value ): string {
+				$value = (string) preg_replace( '/\bGenuine(?:\s+[^,.<]{1,40})?,\s*competitively priced/iu', 'Competitively priced', $value );
+				$value = (string) preg_replace( '/\bGenuine\s+Generic\b\s*/iu', '', $value );
+				$value = (string) preg_replace( '/\b(Buy the )Generic\s+/u', '$1', $value );
+				return $value;
+			};
+			$fix_title = static function ( string $title ): string {
+				return trim( (string) preg_replace( '/^\s*Generic\s+/iu', '', $title ) );
+			};
+			$ids = $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT ID FROM {$wpdb->posts} WHERE post_type IN ('product','product_variation') AND post_status <> 'trash' AND ( post_title LIKE %s OR post_content LIKE %s OR post_excerpt LIKE %s ) LIMIT 100",
+					'Generic %',
+					'%Genuine%',
+					'%Genuine%'
+				)
+			);
+			if ( empty( $ids ) ) {
+				update_option( 'toptech_claims_cleanup_v1', time() );
+				return;
+			}
+			foreach ( (array) $ids as $id ) {
+				$post = get_post( (int) $id );
+				if ( $post instanceof \WP_Post === false ) {
+					continue;
+				}
+				$update  = array( 'ID' => (int) $id );
+				$title   = $fix_title( (string) $post->post_title );
+				$content = $fix_copy( (string) $post->post_content );
+				$excerpt = $fix_copy( (string) $post->post_excerpt );
+				// Anything still mentioning "Genuine" after the targeted rewrite
+				// gets the word itself removed so the batch query terminates.
+				$content = (string) preg_replace( '/\bGenuine\s+/u', '', $content );
+				$excerpt = (string) preg_replace( '/\bGenuine\s+/u', '', $excerpt );
+				if ( '' !== $title && $title !== $post->post_title ) {
+					$update['post_title'] = $title;
+				}
+				if ( $content !== $post->post_content ) {
+					$update['post_content'] = $content;
+				}
+				if ( $excerpt !== $post->post_excerpt ) {
+					$update['post_excerpt'] = $excerpt;
+				}
+				if ( count( $update ) > 1 ) {
+					wp_update_post( $update );
+				}
+				foreach ( array( 'rank_math_description', 'rank_math_title', '_yoast_wpseo_metadesc' ) as $meta_key ) {
+					$meta = get_post_meta( (int) $id, $meta_key, true );
+					if ( is_string( $meta ) && '' !== $meta ) {
+						$new = $fix_copy( $meta );
+						if ( 'rank_math_title' === $meta_key ) {
+							$new = $fix_title( $new );
+						}
+						if ( $new !== $meta ) {
+							update_post_meta( (int) $id, $meta_key, $new );
+						}
+					}
+				}
+			}
+		} catch ( \Throwable $e ) {
+			error_log( 'TopTech Machinery product claims cleanup failed: ' . $e->getMessage() );
+		}
 	}
 
 	/**
@@ -263,7 +352,7 @@ final class Content_Installer {
         return array(
             'about-us' => array(
                 'title'   => 'About Us',
-                'content' => "<p>{$name} is a Nairobi-based supplier of power tools, solar equipment, generators, water pumps, welding machines and general hardware. We serve contractors, fundis, farmers, small businesses and homeowners, and we deliver countrywide across Kenya.</p><h2>What we sell</h2><p>We stock well-known brands such as Total, Ingco, Makita, Bosch, Honda and Solarmax, alongside dependable value options. Everything we carry is sourced from authorised distributors, so the item you buy is genuine and covered by the manufacturer's warranty.</p><h2>How we work</h2><p><strong>Clear pricing.</strong> All prices are shown in Kenya Shillings (KSh) and include VAT where it applies. There are no hidden fees.</p><p><strong>Fast dispatch.</strong> Orders confirmed before 3:00pm on a working day are dispatched the same day. Delivery then takes 1 to 5 working days depending on your location.</p><p><strong>Expert support.</strong> If you are not sure which tool or machine suits the job, call or WhatsApp us and we will help you decide.</p><h2>Visit or contact us</h2><p><strong>Shop:</strong> {$addr}</p><p><strong>Phone and WhatsApp:</strong> {$phone}<br><strong>Email:</strong> {$mail}</p><p><strong>Opening hours:</strong> Monday to Saturday, 8:00am to 6:00pm. Closed on Sundays and public holidays.</p>",
+                'content' => "<p>{$name} is a Nairobi-based supplier of power tools, solar equipment, generators, water pumps, welding machines and general hardware. We serve contractors, fundis, farmers, small businesses and homeowners, and we deliver countrywide across Kenya.</p><h2>What we sell</h2><p>We stock branded products from makers such as Total, Ingco, Honda, Dayliff and Pedrollo, alongside dependable unbranded value options. Branded items are sold exactly as supplied by the manufacturer or its distributor and carry the brand name on the listing. Unbranded items are listed without a brand name, so you always know which is which. Warranty terms for each item are shown on the product page and explained in our Warranty Policy.</p><h2>Who we are</h2><p>{$name} trades from a walk-in shop in central Nairobi, where you can see products before you buy, collect orders and return items.</p><h2>How we work</h2><p><strong>Clear pricing.</strong> All prices are shown in Kenya Shillings (KSh) and include VAT where it applies. There are no hidden fees.</p><p><strong>Fast dispatch.</strong> Orders confirmed before 3:00pm on a working day are dispatched the same day. Delivery then takes 1 to 5 working days depending on your location.</p><p><strong>Expert support.</strong> If you are not sure which tool or machine suits the job, call or WhatsApp us and we will help you decide.</p><h2>Visit or contact us</h2><p><strong>Shop:</strong> {$addr}</p><p><strong>Phone and WhatsApp:</strong> {$phone}<br><strong>Email:</strong> {$mail}</p><p><strong>Opening hours:</strong> Monday to Saturday, 8:00am to 6:00pm. Closed on Sundays and public holidays.</p>",
             ),
             'contact-us' => array(
                 'title'   => 'Contact Us',

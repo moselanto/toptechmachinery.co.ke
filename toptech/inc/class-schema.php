@@ -329,6 +329,11 @@ final class Schema {
 				),
 			),
 		);
+		// Unbranded items must not claim a brand. Google asks for the brand to be
+		// left out (not set to "Generic") when a product has no manufacturer brand.
+		if ( $this->is_unbranded( $this->brand_name( $product ) ) ) {
+			unset( $data['brand'] );
+		}
 		// Return and shipping markup, mirroring the Merchant Center settings.
 		$data['offers']['hasMerchantReturnPolicy'] = $this->return_policy();
 		$data['offers']['shippingDetails']         = $this->shipping_details();
@@ -468,6 +473,20 @@ final class Schema {
 		}
 		if ( isset( $entity['offers'] ) === false || is_array( $entity['offers'] ) === false ) {
 			return $entity;
+		}
+
+		// Drop a "Generic" / "Unbranded" brand node so unbranded items do not
+		// claim a brand in structured data.
+		if ( isset( $entity['brand'] ) ) {
+			$brand_label = '';
+			if ( is_array( $entity['brand'] ) && isset( $entity['brand']['name'] ) ) {
+				$brand_label = (string) $entity['brand']['name'];
+			} elseif ( is_string( $entity['brand'] ) ) {
+				$brand_label = $entity['brand'];
+			}
+			if ( $this->is_unbranded( $brand_label ) ) {
+				unset( $entity['brand'] );
+			}
 		}
 
 		$return_policy = $this->return_policy();

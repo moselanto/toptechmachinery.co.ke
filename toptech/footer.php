@@ -19,7 +19,7 @@ $rk_hours    = get_theme_mod( 'toptech_hours', 'Mon-Sat 8:00am - 6:00pm' );
 		<div class="rk-footer__cols">
 			<div>
 				<h3><?php bloginfo( 'name' ); ?></h3>
-				<p><?php esc_html_e( 'Your trusted supplier of power tools, solar, and hardware in Kenya. Genuine brands, fair prices, fast delivery countrywide.', 'toptech-machinery' ); ?></p>
+				<p><?php esc_html_e( 'Nairobi supplier of power tools, solar equipment, machinery and hardware. Clear prices in KSh, a walk-in shop, and delivery countrywide.', 'toptech-machinery' ); ?></p>
 				<p><strong><?php esc_html_e( 'Address:', 'toptech-machinery' ); ?></strong><br><?php echo esc_html( $rk_address ); ?></p>
 				<p><a href="tel:<?php echo esc_attr( preg_replace( '/\s+/', '', $rk_phone ) ); ?>"><?php echo esc_html( $rk_phone ); ?></a> &middot; <a href="mailto:<?php echo esc_attr( $rk_email ); ?>"><?php echo esc_html( $rk_email ); ?></a></p>
 				<p><strong><?php esc_html_e( 'Opening hours:', 'toptech-machinery' ); ?></strong><br><?php echo esc_html( $rk_hours ); ?><br><?php esc_html_e( 'Closed Sundays and public holidays.', 'toptech-machinery' ); ?></p>
