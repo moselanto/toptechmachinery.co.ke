@@ -33,7 +33,7 @@ defined( 'ABSPATH' ) || exit;
 			$rk_shop = function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'shop' ) : home_url( '/' );
 			if ( empty( $slides ) || ! is_array( $slides ) ) {
 				$slides = array(
-					array( 'img' => TOPTECH_URI . 'assets/img/banner-tools.jpg', 'title' => __( 'Power Tools & Hardware', 'toptech-machinery' ), 'text' => __( 'Genuine brands. Fair prices. Fast countrywide delivery.', 'toptech-machinery' ), 'url' => $rk_shop ),
+					array( 'img' => TOPTECH_URI . 'assets/img/banner-tools.jpg', 'title' => __( 'Power Tools & Hardware', 'toptech-machinery' ), 'text' => __( 'Leading brands and value options. Clear prices. Countrywide delivery.', 'toptech-machinery' ), 'url' => $rk_shop ),
 					array( 'img' => TOPTECH_URI . 'assets/img/banner-solar.jpg', 'title' => __( 'Solar Solutions', 'toptech-machinery' ), 'text' => __( 'Panels, inverters, batteries & street lights in stock.', 'toptech-machinery' ), 'url' => $rk_shop ),
 				);
 			}

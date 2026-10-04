@@ -50,7 +50,7 @@ final class Content_Installer {
 	 * Runs in batches of 100 per admin load until done (own flag). Idempotent.
 	 */
 	public function clean_unverifiable_product_claims(): void {
-		if ( get_option( 'toptech_claims_cleanup_v1' ) ) {
+		if ( get_option( 'toptech_claims_cleanup_v2' ) ) {
 			return;
 		}
 		if ( function_exists( 'current_user_can' ) === false || current_user_can( 'edit_theme_options' ) === false ) {
@@ -70,18 +70,24 @@ final class Content_Installer {
 			$fix_title = static function ( string $title ): string {
 				return trim( (string) preg_replace( '/^\s*Generic\s+/iu', '', $title ) );
 			};
-			$ids = $wpdb->get_col(
+			// Walk forward by ID so every product is visited exactly once, even
+			// if a row still matches after processing (no stuck batches).
+			$cursor = (int) get_option( 'toptech_claims_cleanup_cursor', 0 );
+			$ids    = $wpdb->get_col(
 				$wpdb->prepare(
-					"SELECT ID FROM {$wpdb->posts} WHERE post_type IN ('product','product_variation') AND post_status <> 'trash' AND ( post_title LIKE %s OR post_content LIKE %s OR post_excerpt LIKE %s ) LIMIT 100",
+					"SELECT ID FROM {$wpdb->posts} WHERE ID > %d AND post_type IN ('product','product_variation') AND post_status <> 'trash' AND ( post_title LIKE %s OR post_content LIKE %s OR post_excerpt LIKE %s ) ORDER BY ID ASC LIMIT 150",
+					$cursor,
 					'Generic %',
-					'%Genuine%',
-					'%Genuine%'
+					'%genuine%',
+					'%genuine%'
 				)
 			);
 			if ( empty( $ids ) ) {
-				update_option( 'toptech_claims_cleanup_v1', time() );
+				update_option( 'toptech_claims_cleanup_v2', time() );
+				delete_option( 'toptech_claims_cleanup_cursor' );
 				return;
 			}
+			update_option( 'toptech_claims_cleanup_cursor', (int) max( array_map( 'intval', (array) $ids ) ), false );
 			foreach ( (array) $ids as $id ) {
 				$post = get_post( (int) $id );
 				if ( $post instanceof \WP_Post === false ) {
@@ -93,8 +99,8 @@ final class Content_Installer {
 				$excerpt = $fix_copy( (string) $post->post_excerpt );
 				// Anything still mentioning "Genuine" after the targeted rewrite
 				// gets the word itself removed so the batch query terminates.
-				$content = (string) preg_replace( '/\bGenuine\s+/u', '', $content );
-				$excerpt = (string) preg_replace( '/\bGenuine\s+/u', '', $excerpt );
+				$content = (string) preg_replace( '/\b(?:100%\s*)?genuine\b[\s,]*/iu', '', $content );
+				$excerpt = (string) preg_replace( '/\b(?:100%\s*)?genuine\b[\s,]*/iu', '', $excerpt );
 				if ( '' !== $title && $title !== $post->post_title ) {
 					$update['post_title'] = $title;
 				}
@@ -352,7 +358,7 @@ final class Content_Installer {
         return array(
             'about-us' => array(
                 'title'   => 'About Us',
-                'content' => "<p>{$name} is a Nairobi-based supplier of power tools, solar equipment, generators, water pumps, welding machines and general hardware. We serve contractors, fundis, farmers, small businesses and homeowners, and we deliver countrywide across Kenya.</p><h2>What we sell</h2><p>We stock branded products from makers such as Total, Ingco, Honda, Dayliff and Pedrollo, alongside dependable unbranded value options. Branded items are sold exactly as supplied by the manufacturer or its distributor and carry the brand name on the listing. Unbranded items are listed without a brand name, so you always know which is which. Warranty terms for each item are shown on the product page and explained in our Warranty Policy.</p><h2>Who we are</h2><p>{$name} trades from a walk-in shop in central Nairobi, where you can see products before you buy, collect orders and return items.</p><h2>How we work</h2><p><strong>Clear pricing.</strong> All prices are shown in Kenya Shillings (KSh) and include VAT where it applies. There are no hidden fees.</p><p><strong>Fast dispatch.</strong> Orders confirmed before 3:00pm on a working day are dispatched the same day. Delivery then takes 1 to 5 working days depending on your location.</p><p><strong>Expert support.</strong> If you are not sure which tool or machine suits the job, call or WhatsApp us and we will help you decide.</p><h2>Visit or contact us</h2><p><strong>Shop:</strong> {$addr}</p><p><strong>Phone and WhatsApp:</strong> {$phone}<br><strong>Email:</strong> {$mail}</p><p><strong>Opening hours:</strong> Monday to Saturday, 8:00am to 6:00pm. Closed on Sundays and public holidays.</p>",
+                'content' => "<p>{$name} is a Nairobi-based supplier of power tools, solar equipment, generators, water pumps, welding machines and general hardware. We serve contractors, fundis, farmers, small businesses and homeowners, and we deliver countrywide across Kenya.</p><h2>What we sell</h2><p>We stock branded products from makers such as Total, Ingco, Honda, Dayliff and Pedrollo, alongside dependable unbranded value options. Branded items are sold exactly as supplied by the manufacturer or its distributor and carry the brand name on the listing. Unbranded items are listed without a brand name, so you always know which is which. Warranty terms for each item are shown on the product page and explained in our Warranty Policy.</p><h2>Who we are</h2><p>{$name} is a trading name of Interglobe Enterprises, Nairobi, Kenya. We trade from a walk-in shop in central Nairobi, where you can see products before you buy, collect orders and return items.</p><h2>How we work</h2><p><strong>Clear pricing.</strong> All prices are shown in Kenya Shillings (KSh) and include VAT where it applies. There are no hidden fees.</p><p><strong>Fast dispatch.</strong> Orders confirmed before 3:00pm on a working day are dispatched the same day. Delivery then takes 1 to 5 working days depending on your location.</p><p><strong>Expert support.</strong> If you are not sure which tool or machine suits the job, call or WhatsApp us and we will help you decide.</p><h2>Visit or contact us</h2><p><strong>Shop:</strong> {$addr}</p><p><strong>Phone and WhatsApp:</strong> {$phone}<br><strong>Email:</strong> {$mail}</p><p><strong>Opening hours:</strong> Monday to Saturday, 8:00am to 6:00pm. Closed on Sundays and public holidays.</p>",
             ),
             'contact-us' => array(
                 'title'   => 'Contact Us',
@@ -360,7 +366,7 @@ final class Content_Installer {
             ),
             'privacy-policy' => array(
                 'title'   => 'Privacy Policy',
-                'content' => "{$upd}<p>This policy explains how {$name} collects and uses your personal information when you shop with us or use this website. We handle personal data in line with the Data Protection Act, 2019 and are guided by the Office of the Data Protection Commissioner.</p><h2>1. Information we collect</h2><p>When you place an order, create an account or get in touch, we collect your name, phone number, email address and delivery address, together with the details of what you bought. As you use the website we also collect basic technical information such as your IP address, device and browser type and the pages you visit, mostly through cookies.</p><h2>2. How we use your information</h2><p>We use it to process and deliver your orders, send order status and tracking updates, answer your questions and warranty requests, and meet our tax and record-keeping obligations in Kenya. We only send offers or marketing messages if you have asked to receive them, and you can opt out at any time.</p><h2>3. Payments</h2><p>Payments go through M-PESA and licensed, PCI DSS compliant card processors. You enter your card or mobile-money details directly with those providers over encrypted connections. We do not see or store your full card number or PIN.</p><h2>4. Who we share it with</h2><p>We share your details only with the partners who help us complete your order, such as delivery and courier companies and our payment processors, and with the authorities where the law requires it. We do not sell or rent your personal information.</p><h2>5. How long we keep it</h2><p>We keep your information for as long as we need it to complete your order and satisfy legal, tax and accounting requirements, then we delete or anonymise it.</p><h2>6. Your rights</h2><p>Under the Data Protection Act, 2019 you can ask to see the information we hold about you, have it corrected, or have it deleted, and you can object to us using it in certain ways. Email {$mail} and we will respond.</p><h2>7. Cookies</h2><p>This website uses cookies to keep your cart and checkout working and to help us improve the site. Our Cookie Policy explains what we use and how to manage them.</p><h2>8. Contact</h2><p>{$name}, {$addr}. {$phone} / {$mail}.</p>",
+                'content' => "{$upd}<p>This policy explains how {$name} collects and uses your personal information when you shop with us or use this website. We handle personal data in line with the Data Protection Act, 2019 and are guided by the Office of the Data Protection Commissioner.</p><h2>1. Information we collect</h2><p>When you place an order, create an account or get in touch, we collect your name, phone number, email address and delivery address, together with the details of what you bought. As you use the website we also collect basic technical information such as your IP address, device and browser type and the pages you visit, mostly through cookies.</p><h2>2. How we use your information</h2><p>We use it to process and deliver your orders, send order status and tracking updates, answer your questions and warranty requests, and meet our tax and record-keeping obligations in Kenya. We only send offers or marketing messages if you have asked to receive them, and you can opt out at any time.</p><h2>3. Payments</h2><p>Online orders are paid by M-PESA or by cash on delivery where available. M-PESA payments are handled by Safaricom, and we only receive the transaction confirmation, never your M-PESA PIN. We do not take card payments on this website. Cards are accepted in person at our Nairobi shop through a licensed card terminal, and we do not store your card number.</p><h2>4. Who we share it with</h2><p>We share your details only with the partners who help us complete your order, such as delivery and courier companies and our payment processors, and with the authorities where the law requires it. We do not sell or rent your personal information.</p><h2>5. How long we keep it</h2><p>We keep your information for as long as we need it to complete your order and satisfy legal, tax and accounting requirements, then we delete or anonymise it.</p><h2>6. Your rights</h2><p>Under the Data Protection Act, 2019 you can ask to see the information we hold about you, have it corrected, or have it deleted, and you can object to us using it in certain ways. Email {$mail} and we will respond.</p><h2>7. Cookies</h2><p>This website uses cookies to keep your cart and checkout working and to help us improve the site. Our Cookie Policy explains what we use and how to manage them.</p><h2>8. Contact</h2><p>{$name}, {$addr}. {$phone} / {$mail}.</p>",
             ),
             'terms-conditions' => array(
                 'title'   => 'Terms &amp; Conditions',
@@ -388,7 +394,7 @@ final class Content_Installer {
             ),
             'faq' => array(
                 'title'   => 'Frequently Asked Questions',
-                'content' => "<h2>Ordering</h2><p><strong>How do I place an order?</strong><br>Add what you want to the cart and check out, or simply call or WhatsApp us on {$phone} and our team will place it for you.</p><p><strong>Are your products genuine?</strong><br>Yes. We buy only from authorised distributors, and our products come with the manufacturer's warranty.</p><h2>Payment</h2><p><strong>How can I pay?</strong><br>Online orders are paid by M-PESA, or by cash on delivery for eligible orders in Nairobi and its environs. Visa and Mastercard are accepted in person at our Nairobi shop, not online. See the Payment Methods page for more.</p><h2>Delivery</h2><p><strong>How long does delivery take?</strong><br>Orders confirmed before 3:00pm on a working day are dispatched the same day. Delivery takes 1 to 5 working days: 1 to 2 days in Nairobi and its environs, 1 to 3 days to major towns, and 2 to 5 days elsewhere. See the Shipping &amp; Delivery Policy.</p><p><strong>How much does delivery cost?</strong><br>A flat KSh 500 per order, anywhere in Kenya, on every product. The charge is shown at checkout before you pay.</p><p><strong>Do you deliver countrywide?</strong><br>Yes, to every county in Kenya.</p><p><strong>Can I collect my order myself?</strong><br>Yes, from our shop at {$addr}, once we confirm it is ready for collection.</p><h2>Returns and warranty</h2><p><strong>What if my item is faulty, damaged or wrong?</strong><br>Contact us within 14 days of delivery and we will arrange a return, an exchange or a full refund at no cost to you. See the Return &amp; Refund Policy.</p><p><strong>Can I return something I simply changed my mind about?</strong><br>Yes, within 14 days, provided it is unused and in its original packaging. You cover the return delivery cost. We never charge a restocking fee.</p><p><strong>How long do refunds take?</strong><br>Approved refunds are processed within 7 days of us receiving and checking the item.</p><h2>Talk to us</h2><p><strong>How do I reach you?</strong><br>Call or WhatsApp {$phone}, email {$mail}, or visit the shop Monday to Saturday, 8:00am to 6:00pm.</p>",
+                'content' => "<h2>Ordering</h2><p><strong>How do I place an order?</strong><br>Add what you want to the cart and check out, or simply call or WhatsApp us on {$phone} and our team will place it for you.</p><p><strong>Which products are branded?</strong><br>Branded items show the manufacturer's name in the title and are sold as supplied by the manufacturer or its distributor. Unbranded value items are listed without a brand name. Warranty terms are shown on each product page.</p><h2>Payment</h2><p><strong>How can I pay?</strong><br>Online orders are paid by M-PESA, or by cash on delivery for eligible orders in Nairobi and its environs. Visa and Mastercard are accepted in person at our Nairobi shop, not online. See the Payment Methods page for more.</p><h2>Delivery</h2><p><strong>How long does delivery take?</strong><br>Orders confirmed before 3:00pm on a working day are dispatched the same day. Delivery takes 1 to 5 working days: 1 to 2 days in Nairobi and its environs, 1 to 3 days to major towns, and 2 to 5 days elsewhere. See the Shipping &amp; Delivery Policy.</p><p><strong>How much does delivery cost?</strong><br>A flat KSh 500 per order, anywhere in Kenya, on every product. The charge is shown at checkout before you pay.</p><p><strong>Do you deliver countrywide?</strong><br>Yes, to every county in Kenya.</p><p><strong>Can I collect my order myself?</strong><br>Yes, from our shop at {$addr}, once we confirm it is ready for collection.</p><h2>Returns and warranty</h2><p><strong>What if my item is faulty, damaged or wrong?</strong><br>Contact us within 14 days of delivery and we will arrange a return, an exchange or a full refund at no cost to you. See the Return &amp; Refund Policy.</p><p><strong>Can I return something I simply changed my mind about?</strong><br>Yes, within 14 days, provided it is unused and in its original packaging. You cover the return delivery cost. We never charge a restocking fee.</p><p><strong>How long do refunds take?</strong><br>Approved refunds are processed within 7 days of us receiving and checking the item.</p><h2>Talk to us</h2><p><strong>How do I reach you?</strong><br>Call or WhatsApp {$phone}, email {$mail}, or visit the shop Monday to Saturday, 8:00am to 6:00pm.</p>",
             ),
             'track-order' => array(
                 'title'   => 'Track Order',
@@ -403,7 +409,7 @@ final class Content_Installer {
      * pages or clobbering later manual edits. Idempotent (own flag).
      */
     public function refresh_pages_content(): void {
-        if ( get_option( 'toptech_pages_content_v8' ) ) {
+        if ( get_option( 'toptech_pages_content_v10' ) ) {
             return;
         }
         if ( function_exists( 'current_user_can' ) === false || current_user_can( 'edit_theme_options' ) === false ) {
@@ -422,7 +428,7 @@ final class Content_Installer {
                     )
                 );
             }
-            update_option( 'toptech_pages_content_v8', time() );
+            update_option( 'toptech_pages_content_v10', time() );
         } catch ( \Throwable $e ) {
             error_log( 'TopTech Machinery pages content refresh failed: ' . $e->getMessage() );
         }

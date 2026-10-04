@@ -521,6 +521,14 @@ final class Schema {
 		return (string) get_post_meta( $product->get_id(), '_powerplug_brand', true );
 	}
 
+	/**
+	 * True when a brand label means "no brand" (empty, Generic, Unbranded, etc.).
+	 */
+	private function is_unbranded( string $brand ): bool {
+		$b = strtolower( trim( $brand ) );
+		return in_array( $b, array( '', 'generic', 'unbranded', 'no brand', 'none', 'n/a', 'oem' ), true );
+	}
+
 	private function print_ld( array $data ): void {
 		echo '<script type="application/ld+json">' . wp_json_encode( $data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . '</script>' . "\n";
 	}

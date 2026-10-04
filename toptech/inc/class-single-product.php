@@ -62,7 +62,7 @@ final class Single_Product {
 		echo '<ul class="rk-trust">';
 		$badges = array(
 			array( '<path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"></path><path d="M9 12l2 2 4-4"></path>', __( 'Walk-in Shop in Nairobi', 'toptech-machinery' ) ),
-			array( '<path d="M20 6L9 17l-5-5"></path>', __( 'Manufacturer Warranty', 'toptech-machinery' ) ),
+			array( '<path d="M20 6L9 17l-5-5"></path>', __( 'Warranty Support', 'toptech-machinery' ) ),
 			array( '<rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>', __( 'Secure Checkout', 'toptech-machinery' ) ),
 			array( '<path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path><path d="M12 7v5l3 2"></path>', __( 'Responsive Support', 'toptech-machinery' ) ),
 		);
@@ -73,7 +73,7 @@ final class Single_Product {
 
 		// Payment methods.
 		echo '<div class="rk-pdp-pay"><span class="rk-pdp-pay__label">' . esc_html__( 'We accept:', 'toptech-machinery' ) . '</span>';
-		foreach ( array( 'M-PESA', 'Visa', 'Mastercard', 'Cash on delivery (Nairobi)' ) as $pay ) {
+		foreach ( array( 'M-PESA', 'Cash on delivery (Nairobi)', 'Visa (in shop)', 'Mastercard (in shop)' ) as $pay ) {
 			echo '<span class="rk-pay-chip">' . esc_html( $pay ) . '</span>';
 		}
 		echo '</div>';
@@ -113,7 +113,7 @@ final class Single_Product {
 		$phone = esc_html( get_theme_mod( 'toptech_phone', '0797 720290' ) );
 		$faqs  = array(
 			array( __( 'How soon can I get this delivered?', 'toptech-machinery' ), __( 'Orders confirmed before 3:00pm on a working day are dispatched the same day. Nairobi and its environs then take 1 to 2 working days, major towns 1 to 3, and other areas 2 to 5. See our Shipping & Delivery Policy, or confirm timing at checkout or by calling us.', 'toptech-machinery' ) ),
-			array( __( 'How do I pay?', 'toptech-machinery' ), __( 'We accept M-PESA, Visa, Mastercard and cash on delivery where available. All online payments are processed securely.', 'toptech-machinery' ) ),
+			array( __( 'How do I pay?', 'toptech-machinery' ), __( 'Online orders are paid by M-PESA, or by cash on delivery for eligible orders in Nairobi and its environs. Visa and Mastercard are accepted in person at our Nairobi shop only. See our Payment Methods page.', 'toptech-machinery' ) ),
 			array( __( 'Is this product covered by warranty?', 'toptech-machinery' ), __( 'Branded items are sold as supplied by the manufacturer or its distributor, and unbranded items are listed without a brand name. We pass on the manufacturer warranty that comes with the item. As a guide, most power tools carry six to twelve months and many generators and solar products carry twelve months or more; the exact period is shown on the product page or in the papers in the box. See our Warranty Policy.', 'toptech-machinery' ) ),
 			array( __( 'Can I return it if there is a problem?', 'toptech-machinery' ), __( 'You may request a return within 14 days of delivery, on both faulty and non-faulty items, and we accept exchanges. See our Return & Refund Policy for details.', 'toptech-machinery' ) ),
 			array( __( 'How do I get help before buying?', 'toptech-machinery' ), __( 'Call or WhatsApp us and our team will help you choose the right tool for the job.', 'toptech-machinery' ) . ' ' . $phone ),
