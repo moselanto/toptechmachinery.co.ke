@@ -19,6 +19,7 @@ $toptech_modules = array(
 	'ToptechMachinery\\Ajax',
 	'ToptechMachinery\\Customizer',
 	'ToptechMachinery\\Schema',
+	'ToptechMachinery\\Feed',
 	'ToptechMachinery\\Content_Installer',
 	'ToptechMachinery\\Demo_Import',
 	'ToptechMachinery\\Single_Product',
