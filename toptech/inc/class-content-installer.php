@@ -35,6 +35,123 @@ final class Content_Installer {
 		add_action( 'admin_init', array( $this, 'cleanup_competitor_brand' ) );
 		add_action( 'admin_init', array( $this, 'reclassify_dewalt_welders' ) );
 		add_action( 'admin_init', array( $this, 'clean_unverifiable_product_claims' ) );
+		add_action( 'admin_init', array( $this, 'catalog_policy_audit' ) );
+	}
+
+	/**
+	 * One-time catalogue clean-up from the October 2026 Merchant Center audit.
+	 *
+	 *  1. Unpublishes (sets to Draft, fully reversible) listings that carry a
+	 *     famous manufacturer brand but show signs of not being that
+	 *     manufacturer's product: model numbers or specs the brand does not make
+	 *     (e.g. 36V Makita spray guns, 2800W DeWalt grinders, "Honda" pumps and
+	 *     generators with 168F clone engines) or prices far below the brand's
+	 *     real price. These are the listings Google's misrepresentation and
+	 *     counterfeit review flags. Draft products disappear from the shop and
+	 *     Google for WooCommerce removes them from Merchant Center.
+	 *  2. Retitles listings with unverifiable origin claims ("Aico Japan",
+	 *     "K-Max Italy"), promotional words ("best quality", "Free ...",
+	 *     "Offer"), shouting capitals, or a pasted description as the title.
+	 *  3. Removes copied marketplace / supplier text (Jumia, drop-shipping).
+	 * Runs once (own flag). Idempotent.
+	 */
+	public function catalog_policy_audit(): void {
+		if ( get_option( 'toptech_catalog_audit_v1' ) ) {
+			return;
+		}
+		if ( function_exists( 'current_user_can' ) === false || current_user_can( 'edit_theme_options' ) === false ) {
+			return;
+		}
+		try {
+			global $wpdb;
+
+			// 1. Unpublish high-risk branded listings.
+			$unpublish = array(
+				// Makita: models/specs Makita does not make, or implausible prices.
+				900442, 900475, 900462, 900430, 900464, 900557, 14258, 13664, 13423, 13294, 13272, 13198, 12357, 30972, 12277,
+				// DeWalt.
+				900671, 31091, 13222,
+				// Bosch.
+				900518, 900506,
+				// "Honda" pumps / generators with clone engines or impossible HP ratings.
+				31567, 14966, 30699, 30693, 14969, 14963, 12569, 12314, 12268,
+				// Other famous brands at implausible prices / products the brand does not make.
+				12996, 31189, 900880, 14810,
+			);
+			foreach ( $unpublish as $pid ) {
+				$post = get_post( (int) $pid );
+				if ( $post instanceof \WP_Post && 'product' === $post->post_type && 'publish' === $post->post_status ) {
+					wp_update_post( array( 'ID' => (int) $pid, 'post_status' => 'draft' ) );
+				}
+			}
+
+			// 2. Exact retitles.
+			$titles = array(
+				900349 => 'Maxmech Electric Start Generator 3.8 KVA/3.0 KW',
+				13965  => 'K-Max KM4600 Gasoline Power Generator 2.4KVA',
+				13402  => 'Tolsen Jigsaw 800W Heavy Duty with Blades and Laser Guide',
+				12713  => 'Powermate 150Ah Heavy Duty Solar Battery',
+				12521  => 'Phoenix 120Ah Maintenance-Free Solar Battery',
+				12989  => 'Ceriotti Gek Hair Straightener',
+				900388 => 'Double Bucket Milking Machine 25L Stainless Steel with Electric Vacuum Pump',
+				900619 => 'USK Unitech 25L Air Compressor',
+				900593 => 'Total Mixer 1800W',
+				900631 => 'Total Mixer 1100W',
+				900806 => 'Wokin PP-R Pipe Welding Machine Set',
+				14843  => 'Wokin Inverter Welding Machine 200A',
+				31602  => 'Aico Battery Charger 320 Amps',
+				31599  => 'Aico Battery Charger 420 Amps',
+				31596  => 'Aico Battery Charger 520 Amps',
+				31593  => 'Aico Battery Charger 620 Amps',
+				31555  => 'Aico Floor Scrubber with Brushes',
+				30734  => 'Aico Poker Vibrator 45mm Shaft, 8 HP Engine',
+				14893  => 'Aico 8HP Petrol Car Wash Machine',
+				900828 => 'K-Max 150L Electric Air Compressor Double Piston',
+				900852 => 'K-Max 50L Petrol Driven Double Piston Air Compressor',
+				14793  => 'K-Max 10HP Single Phase Electric Motor, High and Low Speed',
+				14789  => 'K-Max 15HP Three Phase Electric Motor, High and Low Speed',
+				13592  => 'K-Max 850W Commercial Petrol Generator 4.5L 63CC',
+				13180  => 'K-Max 25L Direct Drive Air Compressor and Tyre Inflator',
+			);
+			foreach ( $titles as $pid => $title ) {
+				$post = get_post( (int) $pid );
+				if ( $post instanceof \WP_Post && 'product' === $post->post_type && $post->post_title !== $title ) {
+					wp_update_post( array( 'ID' => (int) $pid, 'post_title' => $title ) );
+					$rm = get_post_meta( (int) $pid, 'rank_math_title', true );
+					if ( is_string( $rm ) && '' !== $rm ) {
+						update_post_meta( (int) $pid, 'rank_math_title', '%title% %sep% %sitename%' );
+					}
+				}
+			}
+
+			// 3. Strip copied marketplace / supplier text from product copy.
+			$strip = array(
+				'/Order on JUMIA today[^<.!]*[.!]?/i',
+				'/\bJumia Mall\b/i',
+				'/We provide the good product with the best price,?\s*we support Wholesale\/?\s*Drop Shipping Order[^<.]*\.?/i',
+				'/\bJuki 100% and high quality\b/i',
+			);
+			if ( is_object( $wpdb ) ) {
+				$ids = $wpdb->get_col(
+					"SELECT ID FROM {$wpdb->posts} WHERE post_type = 'product' AND post_status <> 'trash' AND ( post_content LIKE '%Jumia%' OR post_content LIKE '%Drop Shipping%' OR post_excerpt LIKE '%Jumia%' OR post_content LIKE '%Juki 100%' )"
+				);
+				foreach ( (array) $ids as $pid ) {
+					$post = get_post( (int) $pid );
+					if ( $post instanceof \WP_Post === false ) {
+						continue;
+					}
+					$content = (string) preg_replace( $strip, '', (string) $post->post_content );
+					$excerpt = (string) preg_replace( $strip, '', (string) $post->post_excerpt );
+					if ( $content !== $post->post_content || $excerpt !== $post->post_excerpt ) {
+						wp_update_post( array( 'ID' => (int) $pid, 'post_content' => $content, 'post_excerpt' => $excerpt ) );
+					}
+				}
+			}
+
+			update_option( 'toptech_catalog_audit_v1', time() );
+		} catch ( \Throwable $e ) {
+			error_log( 'TopTech Machinery catalog audit failed: ' . $e->getMessage() );
+		}
 	}
 
 	/**
